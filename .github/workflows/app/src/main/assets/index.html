@@ -1,10 +1,848 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>我的App</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>HTML编辑器 + APK打包工具 · 统一编辑器版</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; }
+body {
+  font-family:'Segoe UI','Microsoft YaHei',sans-serif;
+  background:#1e1e1e; color:#ccc;
+  height:100vh; height:100dvh;
+  overflow:hidden;
+  display:flex; flex-direction:column;
+  -webkit-text-size-adjust:100%;
+}
+button, .tab, .ft-item, .bt {
+  touch-action: manipulation;
+  -webkit-user-select:none; user-select:none;
+}
+
+/* ---------- 工具栏 ---------- */
+.toolbar {
+  display:flex; align-items:center; height:46px;
+  background:#2d2d2d; border-bottom:1px solid #3c3c3c;
+  padding:0 8px; gap:6px;
+  flex-shrink:0;
+  overflow-x:auto; overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.toolbar::-webkit-scrollbar { display:none; }
+.toolbar .logo {
+  font-size:14px; font-weight:bold; color:#4fc3f7;
+  margin-right:6px; white-space:nowrap; flex-shrink:0;
+}
+.toolbar button {
+  background:#3c3c3c; border:1px solid #555; color:#ccc;
+  padding:7px 12px; border-radius:4px; cursor:pointer;
+  font-size:13px; white-space:nowrap; flex-shrink:0;
+  min-height:32px;
+}
+.toolbar button:active { background:#4fc3f7; color:#000; border-color:#4fc3f7; }
+.toolbar .sep { width:1px; height:24px; background:#555; margin:0 2px; flex-shrink:0; }
+.toolbar .status { margin-left:auto; font-size:11px; color:#888; white-space:nowrap; flex-shrink:0; }
+
+/* ---------- 标签栏 ---------- */
+.tabbar {
+  display:flex; height:36px; background:#252526;
+  border-bottom:1px solid #3c3c3c;
+  overflow-x:auto; overflow-y:hidden;
+  flex-shrink:0;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.tabbar::-webkit-scrollbar { display:none; }
+.tab {
+  display:flex; align-items:center; padding:0 12px;
+  min-width:90px; max-width:180px;
+  background:#2d2d2d; border-right:1px solid #3c3c3c;
+  cursor:pointer; font-size:12px; color:#969696;
+  white-space:nowrap; flex-shrink:0; user-select:none;
+}
+.tab.active { background:#1e1e1e; color:#fff; border-bottom:2px solid #4fc3f7; }
+.tab .dirty { color:#ffa726; margin-left:4px; }
+.tab .close { margin-left:6px; font-size:16px; color:#888; padding:0 4px; }
+.tab .close:active { color:#f44336; }
+
+/* ---------- 主区域 ---------- */
+.main { display:flex; flex:1; min-height:0; overflow:hidden; }
+
+/* ---------- 文件树（桌面显示，手机隐藏） ---------- */
+.filetree {
+  width:190px; background:#252526;
+  border-right:1px solid #3c3c3c;
+  overflow-y:auto; flex-shrink:0;
+  -webkit-overflow-scrolling:touch;
+}
+.filetree .ft-header {
+  padding:8px 10px; font-size:11px; text-transform:uppercase;
+  color:#888; letter-spacing:1px; display:flex; align-items:center;
+  position:sticky; top:0; background:#252526; z-index:2;
+}
+.filetree .ft-header button {
+  margin-left:auto; background:none; border:1px solid #555; color:#888;
+  width:26px; height:26px; border-radius:4px; cursor:pointer;
+  font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.filetree .ft-header button:active { color:#4fc3f7; border-color:#4fc3f7; }
+.filetree .ft-item {
+  padding:8px 10px 8px 14px; font-size:13px; cursor:pointer;
+  display:flex; align-items:center; gap:6px; user-select:none;
+}
+.filetree .ft-item:active { background:#2a2d2e; }
+.filetree .ft-item.active { background:#37373d; color:#fff; }
+.filetree .ft-item .badge { margin-left:auto; font-size:10px; color:#ffa726; }
+
+/* ---------- 编辑器（统一 textarea） ---------- */
+.editor-pane { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+#editor { flex:1; min-height:0; position:relative; }
+.code-editor {
+  width:100%; height:100%;
+  background:#1e1e1e; color:#d4d4d4;
+  border:none; padding:12px;
+  font-family:'Consolas','Courier New',monospace;
+  font-size:14px; line-height:1.6;
+  resize:none; outline:none; tab-size:2;
+  -webkit-user-select:text; user-select:text;
+  -webkit-appearance:none;
+  caret-color:#4fc3f7;
+  overflow:auto;
+  white-space:pre;
+  -webkit-overflow-scrolling:touch;
+}
+@media (max-width:768px) {
+  .code-editor { font-size:16px; padding:10px; }
+}
+
+/* ---------- 底部面板 ---------- */
+.bottom-pane {
+  height:130px; border-top:1px solid #3c3c3c;
+  display:flex; flex-direction:column; flex-shrink:0;
+}
+.bottom-tabs { display:flex; height:30px; background:#252526; flex-shrink:0; overflow-x:auto; }
+.bottom-tabs::-webkit-scrollbar { display:none; }
+.bottom-tabs .bt {
+  padding:6px 14px; font-size:12px; color:#888; cursor:pointer;
+  border-bottom:2px solid transparent; user-select:none; white-space:nowrap; flex-shrink:0;
+}
+.bottom-tabs .bt.active { color:#fff; border-bottom-color:#4fc3f7; }
+.bottom-content {
+  flex:1; overflow:auto; padding:6px 10px;
+  font-size:11px; font-family:'Consolas',monospace;
+  line-height:1.6; background:#1b1b1b;
+  -webkit-overflow-scrolling:touch;
+}
+.bottom-content .log-line { margin-bottom:1px; white-space:pre-wrap; word-break:break-all; }
+.log-info { color:#4fc3f7; } .log-success { color:#66bb6a; }
+.log-error { color:#ef5350; } .log-warn { color:#ffa726; }
+
+/* ---------- 预览面板 ---------- */
+.preview-pane {
+  width:0; overflow:hidden; border-left:1px solid #3c3c3c;
+  transition:width .25s ease; display:flex; flex-direction:column; flex-shrink:0;
+}
+.preview-pane.open { width:46%; }
+.preview-pane iframe { flex:1; border:none; background:#fff; }
+.preview-bar {
+  display:flex; align-items:center; height:34px;
+  background:#252526; padding:0 6px; gap:5px; flex-shrink:0;
+}
+.preview-bar input {
+  flex:1; background:#3c3c3c; border:1px solid #555; color:#ccc;
+  padding:5px 8px; border-radius:4px; font-size:11px; min-width:0;
+}
+.preview-bar button {
+  background:#3c3c3c; border:1px solid #555; color:#ccc;
+  padding:5px 9px; border-radius:4px; cursor:pointer; font-size:12px;
+  flex-shrink:0; min-height:28px;
+}
+.preview-bar button:active { background:#4fc3f7; color:#000; }
+
+/* ---------- 模态框 ---------- */
+.modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.75); z-index:1000;
+  align-items:center; justify-content:center;
+  padding:12px;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:#252526; border:1px solid #555; border-radius:8px;
+  width:100%; max-width:640px; max-height:85vh; overflow:auto;
+  box-shadow:0 8px 40px rgba(0,0,0,.6);
+}
+.modal h3 { padding:14px 16px; border-bottom:1px solid #3c3c3c; font-size:14px; color:#fff; }
+.modal .modal-body { padding:14px 16px; font-size:13px; line-height:1.7; }
+.modal .modal-body ol, .modal .modal-body ul { padding-left:20px; }
+.modal .modal-body code { background:#1e1e1e; padding:1px 6px; border-radius:3px; color:#4fc3f7; font-family:Consolas,monospace; font-size:12px; }
+.modal .modal-body pre { background:#1e1e1e; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; color:#d4d4d4; margin:8px 0; }
+.modal .modal-footer { padding:10px 16px; border-top:1px solid #3c3c3c; display:flex; gap:8px; justify-content:flex-end; }
+.modal button { padding:8px 18px; border-radius:4px; cursor:pointer; font-size:13px; border:1px solid #555; min-height:36px; }
+.modal .btn-primary { background:#4fc3f7; color:#000; border-color:#4fc3f7; }
+.modal .btn-default { background:#3c3c3c; color:#ccc; }
+.modal input, .modal select {
+  width:100%; padding:9px 10px; background:#3c3c3c; border:1px solid #555;
+  color:#fff; border-radius:4px; margin:6px 0 12px; font-size:15px;
+  -webkit-appearance:none;
+}
+.modal label { font-size:12px; color:#aaa; display:block; }
+
+/* ---------- 拖拽 ---------- */
+.drop-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(79,195,247,.12); border:3px dashed #4fc3f7;
+  z-index:2000; align-items:center; justify-content:center;
+  font-size:20px; color:#4fc3f7; pointer-events:none;
+}
+.drop-overlay.open { display:flex; }
+
+/* ---------- 移动端布局 ---------- */
+@media (max-width: 768px) {
+  .toolbar { height:44px; padding:0 6px; }
+  .toolbar .logo { font-size:13px; }
+  .toolbar .status { display:none; }
+  .toolbar button { padding:6px 10px; font-size:12px; }
+  .filetree { display:none; }
+  .preview-pane.open {
+    width:100%; position:fixed; left:0; right:0; top:44px; bottom:0; z-index:100;
+  }
+  .bottom-pane { height:110px; }
+  .main { flex-direction:column; }
+  #editor { flex:1 1 auto; }
+  .modal { max-width:100%; max-height:80vh; }
+  .modal input, .modal select { font-size:16px; }
+}
+@media (max-width: 380px) {
+  .toolbar button { padding:6px 8px; font-size:11px; }
+  .tab { min-width:70px; padding:0 8px; font-size:11px; }
+}
+</style>
 </head>
-<body style="background-color: #667eea; color: white; text-align: center; padding-top: 50px; font-family: sans-serif;">
-    <h1>🎉 恭喜！</h1>
+<body>
+
+<div class="toolbar">
+  <div class="logo">📝 Editor</div>
+  <button data-action="new">＋新建</button>
+  <button data-action="open">📂打开</button>
+  <button data-action="save">💾保存</button>
+  <button data-action="export">📦导出</button>
+  <button data-action="preview">👁️预览</button>
+  <button data-action="apk" style="background:#2e7d32;border-color:#2e7d32;color:#fff;">📱打包</button>
+  <button data-action="help">❓</button>
+  <div class="status" id="statusText">就绪</div>
+</div>
+
+<div class="tabbar" id="tabbar"></div>
+
+<div class="main">
+  <div class="filetree" id="filetree">
+    <div class="ft-header">📁 文件 <button data-action="new">+</button></div>
+    <div id="ft-list"></div>
+  </div>
+  <div class="editor-pane">
+    <div id="editor">
+      <textarea class="code-editor" id="codeEditor" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" wrap="off"></textarea>
+    </div>
+  </div>
+  <div class="preview-pane" id="previewPane">
+    <div class="preview-bar">
+      <input id="previewUrl" readonly value="about:blank">
+      <button data-action="device-mobile" title="手机视图">📱</button>
+      <button data-action="device-desktop" title="桌面视图">💻</button>
+      <button data-action="refresh">🔄</button>
+      <button data-action="close-preview">✕</button>
+    </div>
+    <iframe id="previewFrame" sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups"></iframe>
+  </div>
+</div>
+
+<div class="bottom-pane">
+  <div class="bottom-tabs">
+    <div class="bt active" data-tab="console">🖥 控制台</div>
+    <div class="bt" data-tab="problems">⚠️ 问题</div>
+    <div class="bt" data-tab="files">📄 信息</div>
+  </div>
+  <div class="bottom-content" id="bottomContent"></div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalContent"></div></div>
+<div class="drop-overlay" id="dropOverlay">📥 拖放文件到此处打开</div>
+<input type="file" id="fileInput" style="display:none" multiple accept=".html,.htm,.css,.js,.json,.md,.txt,.xml,.svg" onchange="handleFileSelect(event)">
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<script>
+/* ============================================================
+ *  统一编辑器版：手机/桌面都用原生 textarea
+ * ============================================================ */
+
+const state = {
+  files: {},
+  activeFile: null,
+  previewOpen: false,
+  logs: []
+};
+
+/* ---------- 工具 ---------- */
+function getLangFromName(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const map = { html:'html', htm:'html', css:'css', js:'javascript', mjs:'javascript', json:'json', md:'markdown', xml:'xml', svg:'xml', java:'java', txt:'plaintext' };
+  return map[ext] || 'plaintext';
+}
+function getFileIcon(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const map = { html:'🌐', htm:'🌐', css:'🎨', js:'⚡', mjs:'⚡', json:'📋', md:'📝', xml:'📐', svg:'🖼️', java:'☕', txt:'📄' };
+  return map[ext] || '📄';
+}
+function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function log(level, msg) {
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  state.logs.push(`<div class="log-line log-${level}">[${time}] ${escapeHtml(msg)}</div>`);
+  if (state.logs.length > 300) state.logs.shift();
+  const bt = document.querySelector('.bottom-tabs .bt.active');
+  if (bt && bt.dataset.tab === 'console') {
+    const c = document.getElementById('bottomContent');
+    c.innerHTML = state.logs.join(''); c.scrollTop = c.scrollHeight;
+  }
+}
+function setStatus(t) { const el = document.getElementById('statusText'); if (el) el.textContent = t; }
+
+/* ---------- 编辑器（唯一 textarea） ---------- */
+const editorEl = document.getElementById('codeEditor');
+
+editorEl.addEventListener('input', () => {
+  if (state.activeFile) {
+    state.files[state.activeFile].content = editorEl.value;
+    state.files[state.activeFile].dirty = true;
+    renderTabs(); renderFileTree();
+  }
+  debounceUpdatePreview();
+});
+
+// Tab 键插入两空格
+editorEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = editorEl.selectionStart, end = editorEl.selectionEnd;
+    editorEl.value = editorEl.value.substring(0, start) + '  ' + editorEl.value.substring(end);
+    editorEl.selectionStart = editorEl.selectionEnd = start + 2;
+  }
+});
+
+/* ---------- 文件管理 ---------- */
+function createFile(name, content) {
+  if (!name) return; name = name.trim(); if (!name) return;
+  content = content || '';
+  if (state.files[name]) { openFile(name); return; }
+  state.files[name] = { content, dirty: false };
+  openFile(name); renderFileTree(); renderTabs();
+  log('info', '📄 创建: ' + name);
+}
+function openFile(name) {
+  if (!state.files[name]) return;
+  state.activeFile = name;
+  editorEl.value = state.files[name].content;
+  renderTabs(); renderFileTree(); updatePreview(); updateFileInfoTab();
+  setStatus('打开 ' + name);
+}
+function saveFile() {
+  if (!state.activeFile) { log('warn', '没有打开的文件'); return; }
+  state.files[state.activeFile].content = editorEl.value;
+  state.files[state.activeFile].dirty = false;
+  renderTabs(); renderFileTree(); updateFileInfoTab();
+  log('success', '💾 已保存: ' + state.activeFile);
+  setStatus('已保存 ' + state.activeFile);
+}
+function deleteFile(name) {
+  if (!confirm('删除 "' + name + '" ？')) return;
+  delete state.files[name];
+  if (state.activeFile === name) {
+    const keys = Object.keys(state.files);
+    state.activeFile = keys.length ? keys[0] : null;
+    if (state.activeFile) openFile(state.activeFile);
+    else { editorEl.value = ''; renderTabs(); }
+  }
+  renderFileTree(); renderTabs();
+  log('info', '🗑 删除: ' + name);
+}
+function newFile() {
+  const name = prompt('文件名（含扩展名）:', 'page.html');
+  if (!name || !name.trim()) return;
+  const n = name.trim();
+  if (state.files[n]) { openFile(n); return; }
+  const ext = (n.split('.').pop() || '').toLowerCase();
+  let content = '';
+  if (ext === 'html' || ext === 'htm') content = '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>新页面</title>\n</head>\n<body>\n  \n</body>\n</html>\n';
+  else if (ext === 'css') content = '/* 样式 */\n';
+  else if (ext === 'js') content = '// JavaScript\n';
+  createFile(n, content);
+}
+function openFileDialog() { document.getElementById('fileInput').click(); }
+function handleFileSelect(e) {
+  const files = Array.from(e.target.files || []);
+  files.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      let fname = f.name;
+      if (state.files[fname]) { let c = 1; while (state.files[fname]) fname = f.name.replace(/(\.[^.]+)$/, '_' + (c++) + '$1'); }
+      createFile(fname, ev.target.result);
+    };
+    reader.readAsText(f);
+  });
+  e.target.value = '';
+}
+
+/* ---------- 渲染 ---------- */
+function renderTabs() {
+  const names = Object.keys(state.files);
+  const tabbar = document.getElementById('tabbar');
+  if (!names.length) { tabbar.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:#666;">暂无文件</div>'; return; }
+  tabbar.innerHTML = names.map(n => {
+    const dirty = state.files[n].dirty ? '<span class="dirty">●</span>' : '';
+    const active = n === state.activeFile ? 'active' : '';
+    return `<div class="tab ${active}" data-file="${escapeHtml(n)}">
+      <span>${escapeHtml(n)}</span>${dirty}
+      <span class="close" data-close="${escapeHtml(n)}">×</span>
+    </div>`;
+  }).join('');
+}
+function renderFileTree() {
+  const names = Object.keys(state.files);
+  const list = document.getElementById('ft-list');
+  if (!names.length) { list.innerHTML = '<div style="padding:10px;font-size:11px;color:#666;">没有文件</div>'; return; }
+  list.innerHTML = names.map(n => {
+    const icon = getFileIcon(n);
+    const active = n === state.activeFile ? 'active' : '';
+    const dirty = state.files[n].dirty ? '<span class="badge">●</span>' : '';
+    return `<div class="ft-item ${active}" data-file="${escapeHtml(n)}">
+      <span>${icon}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(n)}</span>${dirty}
+    </div>`;
+  }).join('');
+}
+function updateFileInfoTab() {
+  const bt = document.querySelector('.bottom-tabs .bt.active');
+  if (!bt || bt.dataset.tab !== 'files') return;
+  const content = document.getElementById('bottomContent');
+  const name = state.activeFile;
+  if (!name) { content.innerHTML = '<span style="color:#888;">没有打开的文件</span>'; return; }
+  const f = state.files[name];
+  const bytes = new Blob([f.content || '']).size;
+  content.innerHTML = `
+    <div style="line-height:1.9;font-family:Consolas,monospace;font-size:12px;">
+      <div><span style="color:#4fc3f7;">文件:</span> ${escapeHtml(name)}</div>
+      <div><span style="color:#4fc3f7;">语言:</span> ${getLangFromName(name)}</div>
+      <div><span style="color:#4fc3f7;">行数:</span> ${(f.content||'').split('\n').length}</div>
+      <div><span style="color:#4fc3f7;">大小:</span> ${(bytes/1024).toFixed(2)} KB</div>
+      <div><span style="color:#4fc3f7;">状态:</span> ${f.dirty ? '<span style="color:#ffa726;">未保存</span>' : '<span style="color:#66bb6a;">已保存</span>'}</div>
+    </div>`;
+}
+
+/* ---------- 预览 ---------- */
+let previewTimer = null;
+function debounceUpdatePreview() { clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 500); }
+function buildPreviewHtml() {
+  const htmlFiles = Object.keys(state.files).filter(f => /\.html?$/i.test(f));
+  if (!htmlFiles.length) return null;
+  const mainFile = state.files['index.html'] ? 'index.html' : htmlFiles[0];
+  let html = state.files[mainFile].content;
+  let allCSS = '';
+  Object.keys(state.files).filter(f => /\.css$/i.test(f)).forEach(c => { allCSS += `\n/* ${c} */\n${state.files[c].content}\n`; });
+  if (allCSS) html = html.includes('</head>') ? html.replace('</head>', `<style>${allCSS}</style>\n</head>`) : `<style>${allCSS}</style>\n` + html;
+  let allJS = '';
+  Object.keys(state.files).filter(f => /\.(js|mjs)$/i.test(f)).forEach(j => { allJS += `\n/* ${j} */\n${state.files[j].content}\n`; });
+  if (allJS) html = html.includes('</body>') ? html.replace('</body>', `<script>${allJS}<\/script>\n</body>`) : html + `\n<script>${allJS}<\/script>\n`;
+  return { html, mainFile };
+}
+function updatePreview() {
+  if (!state.previewOpen) return;
+  const result = buildPreviewHtml();
+  const frame = document.getElementById('previewFrame');
+  if (!result) {
+    frame.srcdoc = '<html><body style="background:#1e1e1e;color:#888;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;"><p>没有HTML文件</p></body></html>';
+    document.getElementById('previewUrl').value = 'about:blank';
+    return;
+  }
+  try { frame.srcdoc = result.html; } catch(e) { frame.contentDocument.open(); frame.contentDocument.write(result.html); frame.contentDocument.close(); }
+  document.getElementById('previewUrl').value = 'preview://' + result.mainFile;
+}
+function togglePreview() {
+  state.previewOpen = !state.previewOpen;
+  document.getElementById('previewPane').classList.toggle('open', state.previewOpen);
+  if (state.previewOpen) updatePreview();
+  log('info', state.previewOpen ? '👁️ 打开预览' : '关闭预览');
+}
+function refreshPreview() { updatePreview(); log('info', '🔄 预览已刷新'); }
+function setPreviewDevice(d) {
+  const frame = document.getElementById('previewFrame');
+  if (d === 'mobile') { frame.style.width = '375px'; frame.style.margin = '0 auto'; }
+  else { frame.style.width = '100%'; frame.style.margin = '0'; }
+  log('info', '设备: ' + (d === 'mobile' ? '手机' : '桌面'));
+}
+
+/* ---------- 导出 HTML ---------- */
+function exportHTML() {
+  const result = buildPreviewHtml();
+  if (!result) { log('error', '没有HTML文件可导出'); return; }
+  const blob = new Blob([result.html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = result.mainFile.replace(/\.html?$/i, '_export.html');
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  log('success', '📦 HTML已导出: ' + a.download);
+  setStatus('HTML已导出');
+}
+
+/* ---------- 打包 Android ---------- */
+function buildAPK() {
+  const htmlFiles = Object.keys(state.files).filter(f => /\.html?$/i.test(f));
+  if (!htmlFiles.length) { log('error', '没有HTML文件'); alert('请先创建HTML文件'); return; }
+  const modal = document.getElementById('modalContent');
+  modal.innerHTML = `
+    <h3>📱 生成Android工程</h3>
+    <div class="modal-body">
+      <label>应用名称</label><input id="apkAppName" value="MyApp">
+      <label>包名</label><input id="apkPackage" value="com.example.myapp">
+      <label>版本</label><input id="apkVersion" value="1.0.0">
+      <label>最小SDK</label>
+      <select id="apkMinSdk">
+        <option value="21">API 21</option>
+        <option value="23" selected>API 23</option>
+        <option value="26">API 26</option>
+      </select>
+      <p style="font-size:11px;color:#888;">将生成含 GitHub Actions 的完整工程 ZIP</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-default" data-action="close-modal">取消</button>
+      <button class="btn-primary" data-action="do-build">生成并下载</button>
+    </div>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function doBuildAPK() {
+  const appName = document.getElementById('apkAppName').value.trim() || 'MyApp';
+  const appId = document.getElementById('apkPackage').value.trim() || 'com.example.myapp';
+  const version = document.getElementById('apkVersion').value.trim() || '1.0.0';
+  const minSdk = document.getElementById('apkMinSdk').value || '23';
+  if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i.test(appId)) { alert('包名格式不正确'); return; }
+  closeModal();
+  log('info', '生成工程...'); setStatus('生成中...');
+  try {
+    const project = generateProject(appName, appId, version, minSdk);
+    if (window.JSZip) {
+      const zip = new JSZip();
+      Object.entries(project).forEach(([p, c]) => zip.file(p, c));
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      downloadBlob(blob, appName.replace(/\s+/g, '_') + '_AndroidProject.zip');
+      log('success', '✅ ZIP已生成 (' + Object.keys(project).length + ' 个文件)');
+      setStatus('ZIP已下载');
+      showSuccessModal(appName, appId, version);
+    } else {
+      log('warn', 'JSZip未加载，降级逐个下载');
+      downloadFallback(project, appName);
+      showSuccessModal(appName, appId, version, true);
+    }
+  } catch (err) { log('error', '失败: ' + err.message); alert('生成失败: ' + err.message); }
+}
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function showSuccessModal(appName, appId, version, fallback) {
+  showModal('✅ 工程已生成', `
+    <p><b>${escapeHtml(appName)}</b> · 包名 <code>${escapeHtml(appId)}</code> · v${escapeHtml(version)}</p>
+    <h4 style="margin-top:12px;color:#4fc3f7;">本地编译</h4>
+    <p>解压 ZIP → Android Studio 打开 → Build → Build APK(s)</p>
+    <h4 style="margin-top:12px;color:#4fc3f7;">GitHub Actions 自动编译（推荐）</h4>
+    <ol style="padding-left:20px;">
+      <li>GitHub 新建空仓库</li>
+      <li><code>git init && git add . && git commit -m init && git push</code></li>
+      <li>Actions 标签页自动运行 Build APK</li>
+      <li>运行完成 → Artifacts 下载 <code>app-debug-apk</code></li>
+    </ol>
+    ${fallback ? '<p style="color:#ef5350;margin-top:8px;">JSZip 未加载，已降级逐个下载</p>' : ''}
+  `, [{ text: '知道了', class: 'btn-primary', action: 'close-modal' }]);
+}
+
+function generateProject(appName, appId, version, minSdk) {
+  const javaPkg = appId.replace(/\./g, '/');
+  const safeName = appName.replace(/"/g, '\\"');
+  const result = buildPreviewHtml();
+  const mainHtml = result ? result.html : '<!DOCTYPE html><html><body><h1>Hello</h1></body></html>';
+  const files = {};
+
+  files['app/src/main/AndroidManifest.xml'] = `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${appId}">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:label="${safeName}" android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>`;
+
+  files[`app/src/main/java/${javaPkg}/MainActivity.java`] = `package ${appId};
+import android.app.Activity;
+import android.os.Bundle;
+import android.view.KeyEvent;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebSettings;
+
+public class MainActivity extends Activity {
+    private WebView webView;
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        webView = new WebView(this);
+        setContentView(webView);
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(true);
+        webView.setWebViewClient(new WebViewClient());
+        webView.loadUrl("file:///android_asset/index.html");
+    }
+    @Override public boolean onKeyDown(int k, KeyEvent e) {
+        if (k == KeyEvent.KEYCODE_BACK && webView.canGoBack()) { webView.goBack(); return true; }
+        return super.onKeyDown(k, e);
+    }
+    @Override protected void onDestroy() { if (webView != null) webView.destroy(); super.onDestroy(); }
+}`;
+
+  files['app/src/main/assets/index.html'] = mainHtml;
+
+  files['app/build.gradle'] = `apply plugin: 'com.android.application'
+android {
+    namespace '${appId}'
+    compileSdk 34
+    defaultConfig {
+        applicationId "${appId}"
+        minSdkVersion ${minSdk}
+        targetSdkVersion 34
+        versionCode 1
+        versionName "${version}"
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}`;
+
+  files['build.gradle'] = `buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
+}
+allprojects { repositories { google(); mavenCentral() } }`;
+
+  files['settings.gradle'] = `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+rootProject.name = "${appName.replace(/['"]/g, '')}"
+include ':app'`;
+
+  files['gradle.properties'] = `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true`;
+
+  files['gradle/wrapper/gradle-wrapper.properties'] = `distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists`;
+
+  files['.github/workflows/build.yml'] = `name: Build APK
+on:
+  push: { branches: [ main, master ] }
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v3
+        with: { gradle-version: '8.4' }
+      - run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+`;
+
+  files['.gitignore'] = `*.iml
+.gradle
+/local.properties
+/.idea
+/build
+/app/build
+`;
+
+  files['README.md'] = `# ${appName}
+
+## 信息
+- 包名: ${appId}
+- 版本: ${version}
+- 最小SDK: ${minSdk}
+
+## 本地编译
+用 Android Studio 打开 → Build → Build APK(s)
+
+## GitHub Actions 编译
+1. GitHub 新建空仓库
+2. \`git init && git add . && git commit -m init\`
+3. \`git remote add origin <仓库地址>\`
+4. \`git push -u origin main\`
+5. Actions 页自动运行 → Artifacts 下载 APK
+`;
+
+  return files;
+}
+
+function downloadFallback(project, appName) {
+  const names = Object.keys(project);
+  const txt = names.map(f => `\n${'='.repeat(50)}\n${f}\n${'='.repeat(50)}\n${project[f]}\n`).join('');
+  downloadBlob(new Blob([txt], { type: 'text/plain;charset=utf-8' }), appName + '_工程清单.txt');
+}
+
+/* ---------- 模态框 ---------- */
+function showModal(title, body, buttons) {
+  const m = document.getElementById('modalContent');
+  m.innerHTML = `<h3>${title}</h3><div class="modal-body">${body}</div>
+    <div class="modal-footer">${(buttons||[]).map(b => `<button class="${b.class}" data-action="${b.action}">${b.text}</button>`).join('')}</div>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+document.getElementById('modalOverlay').addEventListener('click', (e) => { if (e.target.id === 'modalOverlay') closeModal(); });
+
+function showHelp() {
+  showModal('❓ 帮助', `
+    <p><b>编辑器</b></p>
+    <p>手机和电脑统一使用原生文本编辑器，点击编辑区即可输入，Tab 键插入两个空格。</p>
+    <p style="margin-top:8px;"><b>快捷键（外接键盘）</b></p>
+    <p style="font-family:monospace;font-size:12px;">Ctrl+S 保存 · Ctrl+E 导出 · Ctrl+P 预览 · Ctrl+B 打包 · Ctrl+N 新建</p>
+    <p style="margin-top:8px;"><b>打包 APK</b></p>
+    <p>点「📱打包」生成 ZIP（含 GitHub Actions），推到 GitHub 自动编译 APK。</p>
+  `, [{ text: '知道了', class: 'btn-primary', action: 'close-modal' }]);
+}
+
+/* ---------- 底部 tab ---------- */
+function switchBottomTab(type) {
+  document.querySelectorAll('.bottom-tabs .bt').forEach(t => t.classList.toggle('active', t.dataset.tab === type));
+  const c = document.getElementById('bottomContent');
+  if (type === 'console') { c.innerHTML = state.logs.join('') || '<span style="color:#888;">暂无日志</span>'; c.scrollTop = c.scrollHeight; }
+  else if (type === 'problems') c.innerHTML = '<span style="color:#888;">✅ 没有问题</span>';
+  else updateFileInfoTab();
+}
+
+/* ---------- 统一事件委托 ---------- */
+document.addEventListener('click', (e) => {
+  const target = e.target;
+
+  const actionBtn = target.closest('[data-action]');
+  if (actionBtn) {
+    e.preventDefault();
+    const action = actionBtn.dataset.action;
+    switch (action) {
+      case 'new': newFile(); break;
+      case 'open': openFileDialog(); break;
+      case 'save': saveFile(); break;
+      case 'export': exportHTML(); break;
+      case 'preview': togglePreview(); break;
+      case 'apk': buildAPK(); break;
+      case 'help': showHelp(); break;
+      case 'refresh': refreshPreview(); break;
+      case 'close-preview': togglePreview(); break;
+      case 'device-mobile': setPreviewDevice('mobile'); break;
+      case 'device-desktop': setPreviewDevice('desktop'); break;
+      case 'close-modal': closeModal(); break;
+      case 'do-build': doBuildAPK(); break;
+    }
+    return;
+  }
+
+  const closeBtn = target.closest('[data-close]');
+  if (closeBtn) { e.stopPropagation(); deleteFile(closeBtn.dataset.close); return; }
+
+  const fileEl = target.closest('[data-file]');
+  if (fileEl) { openFile(fileEl.dataset.file); return; }
+
+  const bt = target.closest('.bt');
+  if (bt && bt.dataset.tab) { switchBottomTab(bt.dataset.tab); return; }
+});
+
+/* ---------- 拖拽 ---------- */
+function initDragDrop() {
+  const overlay = document.getElementById('dropOverlay');
+  let counter = 0;
+  document.addEventListener('dragenter', e => { e.preventDefault(); counter++; overlay.classList.add('open'); });
+  document.addEventListener('dragleave', e => { e.preventDefault(); counter--; if (counter <= 0) { counter = 0; overlay.classList.remove('open'); } });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault(); counter = 0; overlay.classList.remove('open');
+    Array.from(e.dataTransfer.files || []).forEach(f => {
+      const r = new FileReader();
+      r.onload = ev => {
+        let fname = f.name;
+        if (state.files[fname]) { let c = 1; while (state.files[fname]) fname = f.name.replace(/(\.[^.]+)$/, '_' + (c++) + '$1'); }
+        createFile(fname, ev.target.result);
+      };
+      r.readAsText(f);
+    });
+  });
+}
+
+/* ---------- 快捷键 ---------- */
+document.addEventListener('keydown', e => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (!mod) return;
+  switch (e.key.toLowerCase()) {
+    case 's': e.preventDefault(); saveFile(); break;
+    case 'e': e.preventDefault(); exportHTML(); break;
+    case 'b': e.preventDefault(); buildAPK(); break;
+    case 'p': e.preventDefault(); togglePreview(); break;
+    case 'n': e.preventDefault(); newFile(); break;
+  }
+});
+
+/* ---------- 初始化 ---------- */
+window.addEventListener('DOMContentLoaded', () => {
+  initDragDrop();
+  renderFileTree();
+  log('info', '🚀 编辑器就绪（统一 textarea）');
+
+  if (Object.keys(state.files).length === 0) {
+    createFile('index.html', `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>我的应用</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:20px}
+h1{font-size:2em;margin-bottom:8px;text-align:center}
+p{font-size:1em;opacity:.9;text-align:center}
+.btn{margin-top:20px;padding:12px 28px;background:rgba(255,255,255,.2);border:2px solid white;color:white;border-radius:25px;cursor:pointer;font-size:15px}
+.btn:active{background:rgba(255,255,255,.35)}
+</style>
+</head>
+<body>
+<h1>🎉 你好，世界！</h1>
+<p>这是用HTML编辑器创建的应用</p>
+<button class="btn" onclick="alert('运行成功！')">点击测试</button>
+<script>console.log('App started');<\/script>
+</body>
+</html>`);
+    log('success', '✅ 示例文件已创建');
+  }
+});
+</script>
 </body>
 </html>

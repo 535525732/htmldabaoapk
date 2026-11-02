@@ -1,12 +1,10 @@
-name: Auto Create and Build APK
+name: Build APK
 on: [push, workflow_dispatch]
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Create Project Files
         run: |
           mkdir -p app/src/main/java/com/example/myapp
@@ -89,17 +87,31 @@ jobs:
           
           cat > app/src/main/assets/index.html << 'EOF'
           <!DOCTYPE html>
-          <html>
+          <html lang="zh-CN">
           <head>
-              <meta charset="UTF-8">
-              <title>我的App</title>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+          <title>HTML编辑器</title>
+          <style>
+          body { font-family:sans-serif; background:#1e1e1e; color:#ccc; height:100vh; margin:0; display:flex; flex-direction:column; }
+          .toolbar { display:flex; background:#2d2d2d; padding:10px; gap:10px; }
+          .toolbar button { padding:6px 12px; background:#3c3c3c; color:#fff; border:1px solid #555; border-radius:4px; }
+          textarea { flex:1; background:#1e1e1e; color:#d4d4d4; border:none; padding:12px; font-family:monospace; font-size:14px; resize:none; outline:none; }
+          </style>
           </head>
-          <body style="background-color: #667eea; color: white; text-align: center; padding-top: 50px; font-family: sans-serif;">
-              <h1>🎉 自动生成成功！</h1>
+          <body>
+          <div class="toolbar">
+            <button onclick="alert('保存成功')">保存</button>
+            <button onclick="alert('预览中')">预览</button>
+          </div>
+          <textarea id="editor" placeholder="在这里输入代码..."></textarea>
+          <script>
+            console.log('App Started');
+          </script>
           </body>
           </html>
           EOF
-          
+
           cat > app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>

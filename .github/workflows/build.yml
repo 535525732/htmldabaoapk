@@ -1,0 +1,134 @@
+name: Build APK
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Project Files
+        run: |
+          mkdir -p app/src/main/java/com/example/myapp
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/values
+          
+          cat > settings.gradle << 'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          rootProject.name = "MyApp"
+          include ':app'
+          EOF
+          
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOF
+          
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+          
+          cat > app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+          android {
+              namespace 'com.example.myapp'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.myapp"
+                  minSdkVersion 23
+                  targetSdkVersion 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+          EOF
+          
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.myapp">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application android:label="代码打包器" android:usesCleartextTraffic="true" android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          
+          cat > app/src/main/java/com/example/myapp/MainActivity.java << 'EOF'
+          package com.example.myapp;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          public class MainActivity extends Activity {
+              private WebView webView;
+              @Override protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  webView = new WebView(this);
+                  setContentView(webView);
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("file:///android_asset/index.html");
+              }
+          }
+          EOF
+          
+          cat > app/src/main/assets/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+          <title>代码打包器</title>
+          <style>
+          body { font-family:'Segoe UI',sans-serif; background:#1e1e1e; color:#ccc; height:100vh; margin:0; display:flex; flex-direction:column; }
+          .toolbar { display:flex; background:#2d2d2d; padding:10px; gap:10px; border-bottom: 1px solid #444; }
+          .toolbar button { padding:8px 14px; background:#3c3c3c; color:#fff; border:1px solid #555; border-radius:4px; font-size:14px; }
+          .toolbar button:active { background:#4fc3f7; color:#000; }
+          textarea { flex:1; background:#1e1e1e; color:#d4d4d4; border:none; padding:12px; font-family:'Consolas',monospace; font-size:15px; resize:none; outline:none; }
+          </style>
+          </head>
+          <body>
+          <div class="toolbar">
+            <button onclick="alert('保存成功')">💾 保存</button>
+            <button onclick="alert('预览功能开发中')">👁️ 预览</button>
+          </div>
+          <textarea id="editor" placeholder="在这里输入你的网页代码...">
+          <h1>🎉 我的第一个App!</h1>
+          <p>我已经成功把网页变成APP了！</p>
+          </textarea>
+          <script>
+            console.log('App Started Successfully');
+          </script>
+          </body>
+          </html>
+          EOF
+
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">代码打包器</string>
+          </resources>
+          EOF
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v3
+        with: { gradle-version: '8.4' }
+      - run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
